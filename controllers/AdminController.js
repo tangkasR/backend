@@ -1,100 +1,71 @@
-import AdminModel from '../models/AdminModel.js';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import { Admin } from '../models/Models.js';
+import argon2 from 'argon2';
+
+export const getAdmin = async (req, res) => {
+  try {
+    const admin = await Admin.findOne({
+      where: {
+        id: req.params.id
+      }
+    });
+    res.status(200).json({ admin });
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
+};
 
 export const register = async (req, res) => {
-  const {name, email, password, confirmPassword} = req.body;
-  if (password !== confirmPassword) {
-    return res.status (400).json ({
-      msg: 'Password dan Konfirmasi Password tidak sama, silahkan ulang kembali',
-    });
+  const { name, email, password, confirmPassword } = req.body;
+
+  if (password != confirmPassword) {
+    return res
+      .status(400)
+      .json({ msg: 'password dengan konfirmasi password tidak sama' });
   }
-  const salt = await bcrypt.genSalt ();
-  const hashPassword = await bcrypt.hash (password, salt);
+  const hashPassword = await argon2.hash(password);
   try {
-    await AdminModel.create ({
+    await Admin.create({
       name: name,
       email: email,
-      password: hashPassword,
+      password: hashPassword
     });
-    res.json ({AdminModel});
+    res.status(201).json({ Admin });
   } catch (error) {
-    console.log (error);
-    res.status (404).json ({msg: 'Register gagal, silahkan coba lagi'});
+    res.status(400).json({ msg: error.message });
   }
 };
 
 export const login = async (req, res) => {
-  try {
-    const admin = await AdminModel.findAll ({
-      where: {
-        email: req.body.email,
-      },
-    });
-
-    const match = await bcrypt.compare (req.body.password, admin[0].password);
-    if (!match) {
-      return res.status (400).json ({msg: 'Email atau Password salah'});
+  const admin = await Admin.findOne({
+    where: {
+      email: req.body.email
     }
-
-    const adminId = admin[0].id;
-    const name = admin[0].name;
-    const email = admin[0].email;
-
-    const accessToken = jwt.sign (
-      {adminId, name, email},
-      process.env.ACCESS_TOKEN_SECRET,
-      {
-        expiresIn: '20s',
+  });
+  if (!admin) return res.status(404).json({ msg: 'Email atau password salah' });
+  const match = await argon2.verify(admin.password, req.body.password);
+  if (!match) return res.status(404).json({ msg: 'Email atau password salah' });
+  await Admin.update(
+    {
+      token: process.env.ACCESS_TOKEN_SECRET
+    },
+    {
+      where: {
+        email: req.body.email
       }
-    );
-    const refreshToken = jwt.sign (
-      {adminId, name, email},
-      process.env.REFRESH_TOKEN_SECRET,
-      {
-        expiresIn: '1d',
-      }
-    );
-    await AdminModel.update (
-      {refresh_token: refreshToken},
-      {
-        where: {
-          id: adminId,
-        },
-      }
-    );
-    res.cookie ('refreshToken', refreshToken, {
-      httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000,
-    });
-    res.json ({accessToken});
-  } catch (error) {
-    console.log (error);
-    res.status (404).json ({msg: 'Email atau Password salah'});
-  }
+    }
+  );
+  res.status(200).json({ admin });
 };
 
 export const logout = async (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
-  if (!refreshToken) return res.sendStatus (204);
-
-  const admin = await AdminModel.findAll ({
-    where: {
-      refresh_token: refreshToken,
+  await Admin.update(
+    {
+      token: null
     },
-  });
-  if (!admin[0]) return res.sendStatus (204);
-
-  const adminId = admin[0].id;
-
-  await AdminModel.update (
-    {refreshToken: null},
     {
       where: {
-        id: adminId,
-      },
+        id: req.params.id
+      }
     }
   );
-  res.clearCookie ('refreshToken');
-  return res.sendStatus (200);
 };

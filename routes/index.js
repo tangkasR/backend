@@ -1,19 +1,30 @@
 import express from 'express';
 import {
+  getAdmin,
   register,
   login,
-  logout,
+  logout
 } from '../controllers/AdminController.js';
-import dotenv from 'dotenv';
-import {refreshToken} from '../controllers/RefreshTokenController.js';
 
-dotenv.config ();
+import {
+  getMovies,
+  getMovieById,
+  saveMovie,
+  updateMovie,
+  deleteMovie
+} from '../controllers/MovieController.js';
 
-const router = express.Router ();
+const router = express.Router();
 
-router.post ('/register', register);
-router.post ('/login', login);
-router.get ('/refreshToken', refreshToken);
-router.delete ('/logout', logout);
+router.get('/movies', getMovies);
+router.get('/movies/:id', getMovieById);
+router.post('/movies', saveMovie);
+router.put('/movies/:id', updateMovie);
+router.delete('/movies/:id', deleteMovie);
+
+router.get('/getAdmin/:id', getAdmin);
+router.post('/register', register);
+router.post('/login', login);
+router.delete('/logout/:id', logout);
 
 export default router;
